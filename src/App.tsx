@@ -4,15 +4,14 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  BarChart3, 
-  LayoutDashboard, 
-  Library, 
-  Settings, 
-  ChevronRight, 
-  MoreVertical, 
-  Plus, 
-  Search,
+import {
+  BarChart3,
+  LayoutDashboard,
+  Library,
+  Settings,
+  ChevronRight,
+  MoreVertical,
+  Plus,
   Bell,
   Archive,
   FileText,
@@ -27,7 +26,8 @@ import {
   Briefcase,
   Layers,
   Zap,
-  MoreHorizontal
+  MoreHorizontal,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -68,7 +68,7 @@ const getServiceColor = (service: ServiceCategory) => SERVICE_COLORS[service] ||
 export default function App() {
   const [activeRole, setActiveRole] = useState<Role>('ADMIN');
   const [viewAsClient, setViewAsClient] = useState(false);
-  const [currentPath, setCurrentPath] = useState<'dashboard' | 'library' | 'detail'>('dashboard');
+  const [currentPath, setCurrentPath] = useState<'dashboard' | 'library' | 'detail' | 'notifications'>('dashboard');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   
@@ -204,9 +204,9 @@ export default function App() {
         {/* COMMAND BAR */}
         <header className="h-16 border-b border-zinc-900 flex items-center justify-between px-8 bg-brand-black/50 backdrop-blur-sm z-10">
           <div className="flex items-center gap-4">
-            {currentPath === 'detail' && (
-              <button 
-                onClick={() => setCurrentPath('dashboard')} 
+            {(currentPath === 'detail' || currentPath === 'notifications') && (
+              <button
+                onClick={() => setCurrentPath('dashboard')}
                 className="flex items-center gap-2 px-2 py-1 hover:bg-zinc-800 rounded-md transition-colors text-zinc-400 hover:text-white"
               >
                 <ArrowLeft size={16} />
@@ -214,8 +214,9 @@ export default function App() {
               </button>
             )}
             <h1 className="text-sm font-bold tracking-tight uppercase">
-              {currentPath === 'dashboard' ? (effectiveIsClientView ? 'Client Portal' : 'Active Projects Overview') : 
-               currentPath === 'library' ? 'Project Library' : 'Project Details'}
+              {currentPath === 'dashboard' ? (effectiveIsClientView ? 'Client Portal' : 'Active Projects Overview') :
+               currentPath === 'library' ? 'Project Library' :
+               currentPath === 'notifications' ? 'Notifications' : 'Project Details'}
             </h1>
           </div>
 
@@ -226,17 +227,21 @@ export default function App() {
                 <span className="text-[10px] font-mono uppercase text-zinc-400">Live Sync Active</span>
               </div>
             )}
-            
+
             <div className="flex items-center gap-4">
-              <button className="text-zinc-400 hover:text-white transition-colors">
-                <Search size={18} />
-              </button>
-              <div className="relative">
-                <Bell size={18} className="text-zinc-400" />
-                {notifications.filter(n => n.clientId === activeRole && !n.read).length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                )}
-              </div>
+              {effectiveIsClientView && (
+                <div className="relative">
+                  <button
+                    onClick={() => setCurrentPath('notifications')}
+                    className="text-zinc-400 hover:text-white transition-colors"
+                  >
+                    <Bell size={18} />
+                  </button>
+                  {notifications.filter(n => n.clientId === activeRole && !n.read).length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full pointer-events-none"></span>
+                  )}
+                </div>
+              )}
 
               {/* PROFILE DROPDOWN */}
               <div className="relative">
@@ -346,6 +351,21 @@ export default function App() {
               </motion.div>
             )}
 
+            {currentPath === 'notifications' && (
+              <motion.div
+                key="notifications"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-8 max-w-3xl mx-auto w-full"
+              >
+                <NotificationsPageView
+                  notifications={notifications.filter(n => n.clientId === activeRole)}
+                  onMarkRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))}
+                />
+              </motion.div>
+            )}
+
             {currentPath === 'detail' && selectedProjectId && (
               <motion.div 
                 key="detail"
@@ -435,7 +455,7 @@ function FilterSection({ label, options, selected, onToggle, displayMap }: {
 
 function AdminDashboardView({ projects, filteredProjects, onProjectClick, onFinalize }: any) {
   const stats = [
-    { label: 'Active Streams', value: projects.filter(p => p.status === 'Active').length, icon: <Briefcase size={20} /> },
+    { label: 'Active Projects', value: projects.filter(p => p.status === 'Active').length, icon: <Briefcase size={20} /> },
     { label: 'Pending Revs', value: 12, icon: <Clock size={20} /> },
     { label: 'Finished', value: projects.filter(p => p.status === 'Finished').length, icon: <CheckCircle2 size={20} /> },
     { label: 'Avg Progress', value: '64%', icon: <LayoutDashboard size={20} /> },
@@ -465,9 +485,12 @@ function AdminDashboardView({ projects, filteredProjects, onProjectClick, onFina
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold tracking-tight">Active Project List</h2>
-          <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
-            <Filter size={14} />
-            Viewing {filteredProjects.length} Projects
+          <div className="flex items-center gap-4">
+            <UploadResourcesButton />
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
+              <Filter size={14} />
+              Viewing {filteredProjects.length} Projects
+            </div>
           </div>
         </div>
         
@@ -492,9 +515,8 @@ function AdminDashboardView({ projects, filteredProjects, onProjectClick, onFina
                     onClick={() => onProjectClick(p.id)}
                     className="group hover:bg-zinc-800/30 cursor-pointer transition-colors"
                   >
-                    <td className="px-6 py-5">
-                      <div className="text-sm font-bold tracking-tight group-hover:text-white transition-colors">{p.title}</div>
-                      <div className="text-[10px] text-zinc-500 mt-1 uppercase font-mono">ID: {p.id}</div>
+                    <td className="px-6 py-5 max-w-[200px]">
+                      <div className="text-sm font-bold tracking-tight group-hover:text-white transition-colors truncate">{p.title}</div>
                     </td>
                     <td className="px-6 py-5 text-sm font-medium text-zinc-300">
                       {CLIENTS.find(c => c.id === p.clientId)?.name}
@@ -595,8 +617,11 @@ function ClientDashboardView({ client, projects, onProjectClick, notifications }
       {/* PROJECT CARDS */}
       <div className="space-y-4">
         <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4 pl-2">
-          <span>Active Streams</span>
-          <span>{projects.filter((p: any) => p.status === 'Active').length} Running</span>
+          <span>Active Projects</span>
+          <div className="flex items-center gap-4">
+            <UploadResourcesButton />
+            <span>{projects.filter((p: any) => p.status === 'Active').length} Running</span>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-4">
           {projects.filter((p: any) => p.status === 'Active').map((p: Project) => {
@@ -876,7 +901,7 @@ function ProjectDetailView({
                           Progress Update: {project.steps[project.currentStepIndex > 0 ? project.currentStepIndex - 1 : 0].name}
                           {i === 1 && <span className="ml-3 px-1.5 py-0.5 bg-white text-black text-[8px] font-bold uppercase rounded">New</span>}
                         </div>
-                        <div className="text-[10px] text-zinc-600">Core Ops Admin • May {10-i}, 2024</div>
+                        <div className="text-[10px] text-zinc-600">May {10-i}, 2024</div>
                       </div>
                     </div>
                   </div>
@@ -979,6 +1004,102 @@ function ResourceRow({ name, type }: { name: string; type: string }) {
         <span className="text-[11px] font-medium text-zinc-400 group-hover:text-zinc-200">{name}</span>
       </div>
       <FileDown size={14} className="text-zinc-700 group-hover:text-zinc-300 cursor-pointer" />
+    </div>
+  );
+}
+
+function UploadResourcesButton() {
+  const handleUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.click();
+  };
+
+  return (
+    <button
+      onClick={handleUpload}
+      className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+    >
+      <Upload size={12} />
+      Upload Resources
+    </button>
+  );
+}
+
+function NotificationsPageView({ notifications, onMarkRead }: { notifications: any[]; onMarkRead: (id: string) => void }) {
+  const unread = notifications.filter(n => !n.read);
+  const read = notifications.filter(n => n.read);
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight mb-1">Notifications</h2>
+        <p className="text-zinc-500 text-sm">Your pending updates and messages from the team.</p>
+      </div>
+
+      {notifications.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <CheckCircle2 size={32} className="text-zinc-700 mb-4" />
+          <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">All caught up</p>
+          <p className="text-xs text-zinc-700 mt-1">No notifications yet.</p>
+        </div>
+      )}
+
+      {unread.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] pl-1">
+            <AlertCircle size={12} className="text-red-500" />
+            New &amp; Pending ({unread.length})
+          </div>
+          {unread.map((n: any) => (
+            <motion.div
+              key={n.id}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-zinc-900 border border-zinc-800 border-l-4 border-l-red-500 p-5 rounded-2xl flex items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-red-500/10 rounded-xl text-red-500 shrink-0">
+                  <AlertCircle size={18} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-1">{n.type}</div>
+                  <div className="text-sm font-medium text-white">{n.message}</div>
+                  <div className="text-[10px] text-zinc-600 mt-1">{n.timestamp}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => onMarkRead(n.id)}
+                className="shrink-0 px-4 py-2 bg-white text-black text-[10px] font-bold rounded-lg hover:bg-zinc-200 transition-colors uppercase"
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {read.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] pl-1">Read</div>
+          {read.map((n: any) => (
+            <div
+              key={n.id}
+              className="bg-zinc-950 border border-zinc-900 p-5 rounded-2xl flex items-center gap-4 opacity-50"
+            >
+              <div className="p-3 bg-zinc-800 rounded-xl text-zinc-500 shrink-0">
+                <CheckCircle2 size={18} />
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">{n.type}</div>
+                <div className="text-sm font-medium text-zinc-400">{n.message}</div>
+                <div className="text-[10px] text-zinc-700 mt-1">{n.timestamp}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
